@@ -64,11 +64,10 @@ pub struct TextGlyph {
     /// The glyph's ink, in PDF user space. `None` when it draws nothing (a space, an
     /// empty outline, a Type 3 glyph).
     pub bbox: Option<Rect>,
-    /// How far the pen travels after this glyph, as a vector from its origin to the next
-    /// one (PDF user space). `None` on the last glyph of a run — the pen after it is not
-    /// something the run records, and guessing it from the font's advance would report a
-    /// displacement that may not have happened.
-    pub advance: Option<(f64, f64)>,
+    /// How far the pen travels after this glyph, in PDF user space — the font's advance
+    /// plus any `TJ` adjustment and `/CharSpace` / `/WordSpace`. Negative values move the
+    /// pen backwards (kerning, or a gap the producer wrote as a negative number).
+    pub advance: (f64, f64),
 }
 
 /// Everything one page's text layer yields.
@@ -171,8 +170,7 @@ impl<'a> Device<'a> for TextLayerRecorder {
         _: DrawProps<'a>,
         _: &DrawMode,
     ) {
-        let glyphs = glyph_run.glyphs();
-        for (index, glyph) in glyphs.iter().enumerate() {
+        for glyph in glyph_run.glyphs() {
             self.glyphs.push(TextGlyph {
                 text: unicode_of(glyph),
                 char_code: char_code_of(glyph),
@@ -182,11 +180,7 @@ impl<'a> Device<'a> for TextLayerRecorder {
                     x1: rect.x1,
                     y1: rect.y1,
                 }),
-                advance: glyphs.get(index + 1).map(|next| {
-                    let here = glyph.transform().translation();
-                    let there = next.transform().translation();
-                    (there.x - here.x, there.y - here.y)
-                }),
+                advance: glyph.pen_advance(),
             });
         }
     }
