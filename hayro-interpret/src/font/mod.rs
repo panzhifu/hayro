@@ -81,6 +81,7 @@ impl Glyph<'_> {
             Glyph::Type3(_) => None,
         }
     }
+
 }
 
 /// A glyph and its position within a [`GlyphRun`].
