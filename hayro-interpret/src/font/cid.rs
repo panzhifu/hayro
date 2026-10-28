@@ -392,7 +392,20 @@ impl Type0Font {
             } else {
                 code
             };
-            return to_unicode.lookup_bf_string(key);
+            let out = to_unicode.lookup_bf_string(key);
+            if std::env::var_os("HAYRO_TXT_DEBUG").is_some() {
+                let shown = out.as_ref().map(|b| match b {
+                    BfString::Char(c) => c.to_string(),
+                    BfString::String(s) => s.clone(),
+                }).unwrap_or_else(|| "<None>".to_string());
+                let kangxi = shown.chars().next().is_some_and(|c| ('\u{2F00}'..='\u{2FDF}').contains(&c));
+                if out.is_none() || kangxi || shown == "i" || shown == "v" {
+                    eprintln!("dbg type0 code={:#06x} key={key} cid_indexed={} → {}{}",
+                        code, self.to_unicode_is_cid_indexed, shown,
+                        if kangxi { " [KANGXI]" } else { "" });
+                }
+            }
+            return out;
         }
 
         None

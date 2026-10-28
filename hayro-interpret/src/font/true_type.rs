@@ -180,12 +180,24 @@ impl TrueTypeFont {
             return Some(c);
         }
 
-        match &self.kind {
+        let out = match &self.kind {
             Kind::Embedded(e) => e
                 .code_to_name(code as u8)
                 .and_then(|name| glyph_name_to_unicode(name, e.is_zapf_dingbats)),
             Kind::Standard(s) => s.char_code_to_unicode(code as u8),
+        };
+        if std::env::var_os("HAYRO_TXT_DEBUG").is_some() {
+            let shown = out.as_ref().map(|b| match b {
+                BfString::Char(c) => c.to_string(),
+                BfString::String(t) => t.clone(),
+            }).unwrap_or_else(|| "<None>".to_string());
+            let name = match &self.kind {
+                Kind::Embedded(e) => e.code_to_name(code as u8).map(|s| s.to_string()),
+                Kind::Standard(_) => None,
+            };
+            eprintln!("dbg simple_tt code={:#06x} name={:?} → {}", code, name, shown);
         }
+        out
 
         // TODO: The test PDFs below fail (but mutool can render them correctly).
         // There is likely some other strategy that requires processing the font tables
