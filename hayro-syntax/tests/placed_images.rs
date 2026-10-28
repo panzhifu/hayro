@@ -35,3 +35,11 @@ fn a_blank_page_has_no_images() {
     let pdf = Pdf::new(bytes).expect("opens");
     assert!(pdf.pages()[0].placed_images().is_empty());
 }
+
+#[test]
+fn a_pdf_is_send_and_sync() {
+    // A reader keeps one handle per open book and hands pages to whichever background
+    // thread asks; that only works if the document itself crosses threads.
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<Pdf>();
+}

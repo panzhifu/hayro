@@ -45,6 +45,9 @@ pub(crate) fn append_text_string<'a>(
         let (code, adv) = font.read_code(bytes, cur_idx);
         cur_idx += adv;
 
+        let before = ctx.text_state().text_matrix;
+        ctx.text_state_mut().apply_code_advance(code, adv);
+
         if show_glyphs && ctx.ocg_state.is_visible() {
             let origin_displacement = font.origin_displacement(code);
             let transform = ctx.text_state().full_transform()
@@ -52,10 +55,16 @@ pub(crate) fn append_text_string<'a>(
                 * Affine::translate(origin_displacement);
             let glyph = font.get_glyph(font.map_code(code), code, ctx, resources);
 
-            ctx.glyph_scratch.push(PositionedGlyph { glyph, transform });
+            // The `Tm` after a code advance is the pen position of the next glyph; the
+            // difference tells a text layer where the word gaps are (a `TJ` adjustment
+            // lands here too, because it only moves the matrix by a translation).
+            let advance = ctx.text_state().text_matrix * before.inverse();
+            ctx.glyph_scratch.push(PositionedGlyph {
+                glyph,
+                transform,
+                advance,
+            });
         }
-
-        ctx.text_state_mut().apply_code_advance(code, adv);
     }
 }
 

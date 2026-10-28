@@ -137,12 +137,26 @@ impl Glyph<'_> {
 pub struct PositionedGlyph<'a> {
     pub(crate) glyph: Glyph<'a>,
     pub(crate) transform: Affine,
+    /// The pen displacement after this glyph (text space, before the caller's matrix).
+    pub(crate) advance: Affine,
 }
 
 impl PositionedGlyph<'_> {
     /// Return the transform that places this glyph in text space.
     pub fn transform(&self) -> Affine {
         self.transform
+    }
+
+    /// How far the pen moves after this glyph, in PDF user space, **including** the
+    /// `TJ` adjustment (negative ones move the pen backwards) and any `/CharSpace` /
+    /// `/WordSpace`.
+    ///
+    /// This is the distance the *renderer* advances, which is what a text layer needs:
+    /// subtracting two glyph origins across a `TJ` gap reports the gap as if the glyphs
+    /// were adjacent, and a font's own advance would miss the adjustment entirely.
+    pub fn pen_advance(&self) -> (f64, f64) {
+        let translation = self.advance.as_coeffs();
+        (translation[4], translation[5])
     }
 
     /// The box the glyph's **ink** covers, in PDF user space.

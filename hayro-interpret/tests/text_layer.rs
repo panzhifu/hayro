@@ -60,19 +60,11 @@ fn glyph_runs_come_out_with_text_and_boxes() {
 
     // The advance is the displacement to the next glyph: a horizontal font moves along
     // +x, never backwards through a run.
-    let runs_with_advance: Vec<_> = text
-        .glyphs
-        .windows(2)
-        .filter_map(|pair| pair[0].advance)
-        .collect();
-    assert!(!runs_with_advance.is_empty());
-    for (dx, _) in runs_with_advance {
+    let advances: Vec<f64> = text.glyphs.iter().map(|glyph| glyph.advance.0).collect();
+    assert!(!advances.is_empty());
+    for dx in advances {
         assert!(dx >= 0.0, "a left-to-right run must not go backwards: {dx}");
     }
-    assert!(
-        text.glyphs.last().is_some_and(|last| last.advance.is_none()),
-        "the pen after the last glyph of the page is not observable"
-    );
 }
 
 #[test]
