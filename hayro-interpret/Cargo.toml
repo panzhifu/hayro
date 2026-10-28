@@ -24,6 +24,8 @@ rustc-hash = { workspace = true }
 
 [dev-dependencies]
 image = { workspace = true, features = ["png"] }
+# The doc example in `src/text.rs` opens a real document.
+hayro-syntax = { workspace = true, features = ["std", "images", "unsafe"] }
 
 [features]
 default = ["embed-fonts", "embed-cmaps"]

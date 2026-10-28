@@ -118,6 +118,19 @@ impl Glyph<'_> {
             Glyph::Type3(g) => g.char_code(),
         }
     }
+
+    /// The box the glyph's ink covers, in shape space (upem 1000, origin on the
+    /// baseline, **before** any transform).
+    ///
+    /// `None` when nothing is drawn: an empty outline (a space) and every Type 3 glyph
+    /// — a Type 3 glyph's extent lives in its own content stream, which this crate does
+    /// not replay for a box.
+    pub fn outline_bbox(&self) -> Option<Rect> {
+        match self {
+            Glyph::Outline(g) => g.outline_bbox(),
+            Glyph::Type3(_) => None,
+        }
+    }
 }
 
 /// A glyph and its position within a [`GlyphRun`].
@@ -130,6 +143,22 @@ impl PositionedGlyph<'_> {
     /// Return the transform that places this glyph in text space.
     pub fn transform(&self) -> Affine {
         self.transform
+    }
+
+    /// The box the glyph's **ink** covers, in PDF user space.
+    ///
+    /// This is [`Glyph::outline_bbox`] carried through [`Self::transform`]. `None` when
+    /// the glyph draws nothing — a space has no box, and reporting a zero-width one
+    /// would put a selection handle in the middle of a word gap.
+    ///
+    /// The box is the ink, not the em square: a descender hangs below the baseline and a
+    /// capital top sits above the ascender, the way the reader sees them. Where a
+    /// caller wants the line's extent, take the union of the boxes on that line.
+    pub fn bbox(&self) -> Option<Rect> {
+        let rect = self.outline_bbox()?;
+        let transformed = self.transform.transform_rect_bbox(rect);
+        (transformed.x1 > transformed.x0 && transformed.y1 > transformed.y0)
+            .then_some(transformed)
     }
 }
 
@@ -228,6 +257,15 @@ impl OutlineGlyph {
     /// this glyph before drawing the next one.
     pub fn advance_width(&self) -> Option<f32> {
         self.font.glyph_advance_width(self.char_code)
+    }
+
+    /// The box the glyph's **ink** covers in its own coordinate system (upem 1000,
+    /// origin on the baseline). `None` when the outline is empty — a space draws
+    /// nothing, and an empty box is not a box of zero width.
+    pub fn outline_bbox(&self) -> Option<Rect> {
+        let path = self.outline();
+        let rect = crate::util::BezPathExt::fast_bounding_box(&path);
+        (rect.x1 > rect.x0 && rect.y1 > rect.y0).then_some(rect)
     }
 
     /// Get the cache key for this glyph's font.

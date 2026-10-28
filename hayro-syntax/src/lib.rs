@@ -92,7 +92,9 @@ pub mod content;
 mod crypto;
 pub mod metadata;
 pub mod object;
+pub mod outline;
 pub mod page;
+pub mod placed_images;
 pub mod transform;
 pub mod xref;
 
