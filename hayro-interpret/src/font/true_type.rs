@@ -80,6 +80,16 @@ impl TrueTypeFont {
         }
     }
 
+    /// The embedded face's own units per em (`head.unitsPerEm`); `None` for a standard
+    /// font, whose outlines come from the built-in substitute (1000 per em).
+    pub(crate) fn units_per_em(&self) -> Option<f64> {
+        let Kind::Embedded(embedded) = &self.kind else {
+            return None;
+        };
+        let font = embedded.base_font.font_ref();
+        font.head().ok().map(|head| f64::from(head.units_per_em()))
+    }
+
     pub(crate) fn outline_glyph(&self, glyph: GlyphId) -> BezPath {
         match &self.kind {
             Kind::Embedded(e) => e.outline_glyph(glyph),

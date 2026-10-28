@@ -92,6 +92,18 @@ impl CacheKey for OutlineFont {
 }
 
 impl OutlineFont {
+    /// The font's own units per em, when it says (`head.unitsPerEm` for TrueType, the
+    /// `FontMatrix` box for Type 1 / CFF).
+    ///
+    /// The outlines this crate hands out are drawn in that grid, so a caller that wants
+    /// them in the text-space units the interpreter uses (1000 per em) has to divide.
+    pub(crate) fn units_per_em(&self) -> Option<f64> {
+        match self {
+            Self::TrueType(t) => t.units_per_em(),
+            Self::Type1(_) | Self::Type0(_) => None,
+        }
+    }
+
     pub(crate) fn outline_glyph(&self, glyph: GlyphId, code: u32) -> BezPath {
         match self {
             Self::Type1(t) => t.outline_glyph(glyph),

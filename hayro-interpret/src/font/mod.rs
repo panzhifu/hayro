@@ -131,6 +131,37 @@ impl Glyph<'_> {
             Glyph::Type3(_) => None,
         }
     }
+
+    /// The box the glyph's ink covers, **whatever unit the outline came out in**, scaled
+    /// to the font's 1000 units per em.
+    ///
+    /// [`Glyph::outline_bbox`] hands back the outline's own numbers, and those are only
+    /// comparable to the text matrix when the font's upem is 1000. An embedded TrueType
+    /// takes its `head.unitsPerEm` (2048 is just as common as 1000), and its outline is
+    /// drawn in that grid — measured on a hand-built 100-upem font: the raw box came out
+    /// about ten times too wide. Splitting that factor out here keeps every caller
+    /// (`PositionedGlyph::bbox`, the text layer, a selection overlay) on one unit.
+    fn ink_bbox(&self) -> Option<Rect> {
+        let rect = self.outline_bbox()?;
+        let scale = self
+            .unit_scale()
+            .filter(|scale| scale.is_finite() && *scale > 0.0)
+            .unwrap_or(1.0);
+        Some(Rect {
+            x0: rect.x0 * scale,
+            y0: rect.y0 * scale,
+            x1: rect.x1 * scale,
+            y1: rect.y1 * scale,
+        })
+    }
+
+    /// How many outline units make one of the font's 1000 em units.
+    fn unit_scale(&self) -> Option<f64> {
+        match self {
+            Glyph::Outline(glyph) => glyph.font.units_per_em().map(|upem| 1000.0 / upem),
+            Glyph::Type3(_) => Some(1.0),
+        }
+    }
 }
 
 /// A glyph and its position within a [`GlyphRun`].
@@ -169,7 +200,7 @@ impl PositionedGlyph<'_> {
     /// capital top sits above the ascender, the way the reader sees them. Where a
     /// caller wants the line's extent, take the union of the boxes on that line.
     pub fn bbox(&self) -> Option<Rect> {
-        let rect = self.outline_bbox()?;
+        let rect = self.ink_bbox()?;
         let transformed = self.transform.transform_rect_bbox(rect);
         (transformed.x1 > transformed.x0 && transformed.y1 > transformed.y0)
             .then_some(transformed)

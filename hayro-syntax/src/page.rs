@@ -372,6 +372,30 @@ impl<'a> Page<'a> {
     pub fn initial_transform(&self, invert_y: bool) -> Transform {
         let crop_box = self.intersected_crop_box();
         let (_, base_height) = self.base_dimensions();
+        self.initial_transform_for(
+            (crop_box.x0, crop_box.y0),
+            base_height as f64,
+            invert_y,
+        )
+    }
+
+    /// The same map, but against **another** box: `origin` and `base_height` are the
+    /// bottom-left corner and the height of the rectangle the caller wants the page drawn
+    /// into.
+    ///
+    /// A text layer needs exactly this. The glyph boxes a device sees are in PDF user
+    /// space; to put them on the same canvas as the raster they have to go through the
+    /// same rotation and y flip, and they have to be measured against the **visible**
+    /// box — not against the page's own crop rectangle, which for a page whose crop box
+    /// sticks out of the media box is larger than what the raster shows. Measured: one
+    /// such page put every glyph box 2.1 pt to the left with the page's own numbers and
+    /// in the right place with the visible ones.
+    pub fn initial_transform_for(
+        &self,
+        origin: (f64, f64),
+        base_height: f64,
+        invert_y: bool,
+    ) -> Transform {
         let (width, height) = self.render_dimensions();
 
         let horizontal_t = Transform::ROTATE_CW_90 * Transform::translate((0.0, -width as f64));
@@ -400,14 +424,12 @@ impl<'a> Page<'a> {
         };
 
         let inversion_transform = if invert_y {
-            Transform::new([1.0, 0.0, 0.0, -1.0, 0.0, base_height as f64])
+            Transform::new([1.0, 0.0, 0.0, -1.0, 0.0, base_height])
         } else {
             Transform::IDENTITY
         };
 
-        rotation_transform
-            * inversion_transform
-            * Transform::translate((-crop_box.x0, -crop_box.y0))
+        rotation_transform * inversion_transform * Transform::translate((-origin.0, -origin.1))
     }
 }
 
