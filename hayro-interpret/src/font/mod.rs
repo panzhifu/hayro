@@ -68,6 +68,19 @@ impl Glyph<'_> {
             Glyph::Type3(g) => g.char_code(),
         }
     }
+
+    /// The box the glyph's ink covers, in shape space (upem 1000, origin on the
+    /// baseline, **before** any transform).
+    ///
+    /// `None` when nothing is drawn: an empty outline (a space) and every Type 3 glyph
+    /// — a Type 3 glyph's extent lives in its own content stream, which this crate does
+    /// not replay for a box.
+    pub fn outline_bbox(&self) -> Option<Rect> {
+        match self {
+            Glyph::Outline(g) => g.outline_bbox(),
+            Glyph::Type3(_) => None,
+        }
+    }
 }
 
 /// A glyph and its position within a [`GlyphRun`].
@@ -80,6 +93,22 @@ impl PositionedGlyph<'_> {
     /// Return the transform that places this glyph in text space.
     pub fn transform(&self) -> Affine {
         self.transform
+    }
+
+    /// The box the glyph's **ink** covers, in PDF user space.
+    ///
+    /// This is [`Glyph::outline_bbox`] carried through [`Self::transform`]. `None` when
+    /// the glyph draws nothing — a space has no box, and reporting a zero-width one
+    /// would put a selection handle in the middle of a word gap.
+    ///
+    /// The box is the ink, not the em square: a descender hangs below the baseline and a
+    /// capital top sits above the ascender, the way the reader sees them. Where a
+    /// caller wants the line's extent, take the union of the boxes on that line.
+    pub fn bbox(&self) -> Option<Rect> {
+        let rect = self.outline_bbox()?;
+        let transformed = self.transform.transform_rect_bbox(rect);
+        (transformed.x1 > transformed.x0 && transformed.y1 > transformed.y0)
+            .then_some(transformed)
     }
 }
 

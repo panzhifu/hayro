@@ -29,7 +29,7 @@ use hayro_syntax::object::Name;
 use hayro_syntax::object::dict::keys::SUBTYPE;
 use hayro_syntax::object::dict::keys::*;
 use hayro_syntax::object::{Dict, Stream};
-use kurbo::{BezPath, Vec2};
+use kurbo::{BezPath, Rect, Shape as _, Vec2};
 use outline::OutlineFont;
 use program::FontProgram;
 use rustc_hash::FxHashMap;
@@ -378,6 +378,14 @@ impl OutlineGlyph {
     /// this glyph before drawing the next one.
     pub fn advance_width(&self) -> Option<f32> {
         self.font.glyph_advance_width(self.char_code)
+    }
+    /// The box the glyph's **ink** covers in its own coordinate system (upem 1000,
+    /// origin on the baseline). `None` when the outline is empty — a space draws
+    /// nothing, and an empty box is not a box of zero width.
+    pub fn outline_bbox(&self) -> Option<Rect> {
+        let path = self.outline();
+        let rect = path.bounding_box();
+        (rect.x1 > rect.x0 && rect.y1 > rect.y0).then_some(rect)
     }
 
     fn new(font: OutlineFont, id: GlyphId, char_code: u32) -> Self {
