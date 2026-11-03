@@ -339,16 +339,41 @@ impl Type0Font {
     pub(crate) fn char_code_to_unicode(&self, code: u32) -> Option<BfString> {
         let to_unicode = self.to_unicode.as_ref()?;
 
-        if self.to_unicode_is_cid_indexed {
-            return to_unicode.lookup_bf_string(self.code_to_cid(code).unwrap_or(0));
+        let out = if self.to_unicode_is_cid_indexed {
+            to_unicode.lookup_bf_string(self.code_to_cid(code).unwrap_or(0))
+        } else {
+            to_unicode.lookup_bf_string(code).or_else(|| {
+                // See pdfjs_issue9367, whose `ToUnicode` map has its Unicode values
+                // in `cidrange`s rather than `bfrange`s.
+                let value = (1..=4).find_map(|len| to_unicode.lookup_cid_code(code, len))?;
+                char::from_u32(value).map(BfString::Char)
+            })
+        };
+        // 量具：ToUnicode 交出多码位串时把整串打出来（Kangxi 兼容码位是典型样本）。
+        // `HAYRO_TXT_DEBUG` 不设时零输出、不改行为。
+        if std::env::var_os("HAYRO_TXT_DEBUG").is_some() {
+            let shown = out
+                .as_ref()
+                .map(|b| match b {
+                    BfString::Char(c) => c.to_string(),
+                    BfString::String(s) => s.clone(),
+                })
+                .unwrap_or_else(|| "<None>".to_string());
+            let kangxi = shown
+                .chars()
+                .next()
+                .is_some_and(|c| ('\u{2F00}'..='\u{2FDF}').contains(&c));
+            if out.is_none() || kangxi || shown == "i" || shown == "v" {
+                eprintln!(
+                    "dbg type0 code={:#06x} cid_indexed={} → {}{}",
+                    code,
+                    self.to_unicode_is_cid_indexed,
+                    shown,
+                    if kangxi { " [KANGXI]" } else { "" }
+                );
+            }
         }
-
-        to_unicode.lookup_bf_string(code).or_else(|| {
-            // See pdfjs_issue9367, whose `ToUnicode` map has its Unicode values
-            // in `cidrange`s rather than `bfrange`s.
-            let value = (1..=4).find_map(|len| to_unicode.lookup_cid_code(code, len))?;
-            char::from_u32(value).map(BfString::Char)
-        })
+        out
     }
 }
 
