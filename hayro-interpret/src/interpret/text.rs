@@ -45,10 +45,13 @@ pub(crate) fn append_text_string<'a>(
         let (code, adv) = font.read_code(bytes, cur_idx);
         cur_idx += adv;
 
+        // The glyph goes down at the **current** pen position; only afterwards does the
+        // pen move. Advancing first shifts every glyph one slot to the right, which for
+        // a proportional run means each glyph lands on its neighbour.
         let before = ctx.text_state().text_matrix;
-        ctx.text_state_mut().apply_code_advance(code, adv);
+        let pushed = show_glyphs && ctx.ocg_state.is_visible();
 
-        if show_glyphs && ctx.ocg_state.is_visible() {
+        if pushed {
             let origin_displacement = font.origin_displacement(code);
             let glyph_id = font.map_code(code);
             let transform = ctx.text_state().full_transform()
@@ -57,15 +60,23 @@ pub(crate) fn append_text_string<'a>(
                 * Affine::scale_non_uniform(font.glyph_stretch(glyph_id, code), 1.0);
             let glyph = get_glyph(&font, glyph_id, code, ctx, resources);
 
+            ctx.glyph_scratch.push(PositionedGlyph {
+                glyph,
+                transform,
+                advance: Affine::IDENTITY,
+            });
+        }
+
+        ctx.text_state_mut().apply_code_advance(code, adv);
+
+        if pushed {
             // The `Tm` after a code advance is the pen position of the next glyph; the
             // difference tells a text layer where the word gaps are (a `TJ` adjustment
             // lands here too, because it only moves the matrix by a translation).
             let advance = ctx.text_state().text_matrix * before.inverse();
-            ctx.glyph_scratch.push(PositionedGlyph {
-                glyph,
-                transform,
-                advance,
-            });
+            if let Some(glyph) = ctx.glyph_scratch.last_mut() {
+                glyph.advance = advance;
+            }
         }
     }
 }
